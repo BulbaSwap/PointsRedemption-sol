@@ -1,0 +1,40 @@
+{
+  "name": "points-redemption",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",
+    "@nomicfoundation/hardhat-ethers": "^3.0.0",
+    "@nomicfoundation/hardhat-ignition": "^0.15.7",
+    "@nomicfoundation/hardhat-ignition-ethers": "^0.15.0",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.0",
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@nomicfoundation/hardhat-verify": "^2.0.12",
+    "@nomiclabs/hardhat-ethers": "^2.2.3",
+    "@typechain/ethers-v6": "^0.5.0",
+    "@typechain/hardhat": "^9.0.0",
+    "@types/chai": "^4.2.0",
+    "@types/mocha": ">=9.1.0",
+    "chai": "4.3.7",
+    "dotenv": "^16.4.5",
+    "ethers": "^6.4.0",
+    "hardhat": "^2.22.16",
+    "hardhat-gas-reporter": "^1.0.8",
+    "prettier": "^3.3.3",
+    "prettier-plugin-solidity": "^1.4.1",
+    "solidity-coverage": "^0.8.1",
+    "ts-node": "^10.9.2",
+    "typechain": "^8.3.0",
+    "typescript": "^5.6.3"
+  },
+  "scripts": {
+    "test": "npx hardhat test test/PointsRedemption.ts && npx hardhat test test/Claiming.ts",
+    "test:holesky": "npx hardhat test test/PointsRedemption.ts --network morphHolesky && npx hardhat test test/Claiming.ts --network morphHolesky",
+    "test:morph": "npx hardhat test test/PointsRedemption.ts --network morph && npx hardhat test test/Claiming.ts --network morph",
+    "deploy:holesky": "hardhat run scripts/deploy.ts --network morphHolesky",
+    "deploy:morph": "hardhat run scripts/deploy.ts --network morph"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.1.0",
+    "@openzeppelin/contracts-upgradeable": "^5.1.0",
+    "@openzeppelin/hardhat-upgrades": "^3.5.0"
+  }
+}
