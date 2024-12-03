@@ -19,249 +19,217 @@ describe('Claiming', function () {
     [owner, signer, user] = signers;
     globalSigner = signer.address;
 
-    // Deploy PointsRedemption
     factory = await ethers.getContractFactory('PointsRedemption');
     const contract = await upgrades.deployProxy(factory, [globalSigner], {
       initializer: 'initialize',
     });
     pointsRedemption = factory.attach(await contract.getAddress()) as PointsRedemption;
 
-    // Deploy MockERC20
     const MockERC20Factory = (await ethers.getContractFactory('MockERC20')) as MockERC20__factory;
     mockToken = (await MockERC20Factory.deploy()) as MockERC20;
   });
 
   describe('Claiming ETH', function () {
     const eventId = 1;
+    const tokenId = 0;
     const totalAmount = ethers.parseEther('10');
+    const points = ethers.parseEther('100');
     const claimAmount = ethers.parseEther('1');
-    const startTime = async () => {
-      const currentBlock = await ethers.provider.getBlock('latest');
-      return (currentBlock?.timestamp || Math.floor(Date.now() / 1000)) + 60; // Start 60 seconds in future
-    };
-    const minLimit = ethers.parseEther('0.1');
-    const maxLimit = ethers.parseEther('2');
 
     beforeEach(async function () {
-      // Create ETH redemption event
-      await pointsRedemption
-        .connect(owner)
-        .createRedemptionEvent(
-          eventId,
-          ethers.ZeroAddress,
-          totalAmount,
-          await startTime(),
-          minLimit,
-          maxLimit,
-          { value: totalAmount },
-        );
+      await pointsRedemption.connect(owner).createRedemptionEvent(eventId);
+
+      await pointsRedemption.connect(owner).addToken(
+        eventId,
+        tokenId,
+        '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+        totalAmount,
+        ethers.parseEther('0.01'), // 1 point = 0.01 ETH
+        { value: totalAmount },
+      );
     });
 
     it('Should successfully claim ETH with valid signature', async function () {
-      // Fast forward time to after start time
-      await ethers.provider.send('evm_setNextBlockTimestamp', [(await startTime()) + 1]);
-      await ethers.provider.send('evm_mine', []);
-
-      const claimNonce = 1;
       const message = ethers.solidityPackedKeccak256(
-        ['uint256', 'address', 'uint256', 'uint256'],
-        [eventId, user.address, claimAmount, claimNonce],
+        ['uint256', 'uint256', 'address', 'uint256', 'uint256'],
+        [eventId, tokenId, user.address, points, claimAmount],
       );
       const signature = await signer.signMessage(ethers.getBytes(message));
 
       const initialBalance = await ethers.provider.getBalance(user.address);
 
       await expect(
-        pointsRedemption.connect(user).claim(eventId, claimAmount, claimNonce, signature),
+        pointsRedemption.connect(user).claim(eventId, tokenId, points, claimAmount, signature),
       )
         .to.emit(pointsRedemption, 'TokensClaimed')
-        .withArgs(eventId, user.address, claimAmount, claimNonce);
+        .withArgs(eventId, tokenId, user.address, points, claimAmount);
 
       const finalBalance = await ethers.provider.getBalance(user.address);
-      expect(finalBalance - initialBalance).to.be.closeTo(
-        claimAmount,
-        ethers.parseEther('0.01'), // Allow for gas costs
-      );
+      expect(finalBalance - initialBalance).to.be.closeTo(claimAmount, ethers.parseEther('0.01'));
     });
 
     it('Should not allow duplicate claims with same signature', async function () {
-      await ethers.provider.send('evm_setNextBlockTimestamp', [(await startTime()) + 1]);
-      await ethers.provider.send('evm_mine', []);
-
-      const claimNonce = 1;
       const message = ethers.solidityPackedKeccak256(
-        ['uint256', 'address', 'uint256', 'uint256'],
-        [eventId, user.address, claimAmount, claimNonce],
+        ['uint256', 'uint256', 'address', 'uint256', 'uint256'],
+        [eventId, tokenId, user.address, points, claimAmount],
       );
       const signature = await signer.signMessage(ethers.getBytes(message));
 
-      // First claim should succeed
-      await pointsRedemption.connect(user).claim(eventId, claimAmount, claimNonce, signature);
+      await pointsRedemption.connect(user).claim(eventId, tokenId, points, claimAmount, signature);
 
-      // Second claim with same signature should fail
       await expect(
-        pointsRedemption.connect(user).claim(eventId, claimAmount, claimNonce, signature),
+        pointsRedemption.connect(user).claim(eventId, tokenId, points, claimAmount, signature),
       ).to.be.revertedWith('Claim already used');
     });
 
-    it('Should not allow claiming before start time', async function () {
-      const claimNonce = 1;
-      const message = ethers.solidityPackedKeccak256(
-        ['uint256', 'address', 'uint256', 'uint256'],
-        [eventId, user.address, claimAmount, claimNonce],
-      );
-      const signature = await signer.signMessage(ethers.getBytes(message));
-
-      await expect(
-        pointsRedemption.connect(user).claim(eventId, claimAmount, claimNonce, signature),
-      ).to.be.revertedWith('Event not started');
-    });
-
-    it('Should not allow claiming below minimum limit', async function () {
-      await ethers.provider.send('evm_setNextBlockTimestamp', [(await startTime()) + 1]);
-      await ethers.provider.send('evm_mine', []);
-
-      const belowMinAmount = minLimit / 2n; // Half of minimum limit
-      const claimNonce = 1;
-      const message = ethers.solidityPackedKeccak256(
-        ['uint256', 'address', 'uint256', 'uint256'],
-        [eventId, user.address, belowMinAmount, claimNonce],
-      );
-      const signature = await signer.signMessage(ethers.getBytes(message));
-
-      await expect(
-        pointsRedemption.connect(user).claim(eventId, belowMinAmount, claimNonce, signature),
-      ).to.be.revertedWith('Below minimum limit');
-    });
-
-    it('Should not allow claiming above maximum limit', async function () {
-      await ethers.provider.send('evm_setNextBlockTimestamp', [(await startTime()) + 1]);
-      await ethers.provider.send('evm_mine', []);
-
-      const aboveMaxAmount = maxLimit + ethers.parseEther('0.1'); // Slightly above max limit
-      const claimNonce = 1;
-      const message = ethers.solidityPackedKeccak256(
-        ['uint256', 'address', 'uint256', 'uint256'],
-        [eventId, user.address, aboveMaxAmount, claimNonce],
-      );
-      const signature = await signer.signMessage(ethers.getBytes(message));
-
-      await expect(
-        pointsRedemption.connect(user).claim(eventId, aboveMaxAmount, claimNonce, signature),
-      ).to.be.revertedWith('Exceeds maximum limit');
-    });
-
     it('Should not allow claiming with invalid signature', async function () {
-      await ethers.provider.send('evm_setNextBlockTimestamp', [(await startTime()) + 1]);
-      await ethers.provider.send('evm_mine', []);
-
-      const claimNonce = 1;
       const message = ethers.solidityPackedKeccak256(
-        ['uint256', 'address', 'uint256', 'uint256'],
-        [eventId, user.address, claimAmount, claimNonce],
+        ['uint256', 'uint256', 'address', 'uint256', 'uint256'],
+        [eventId, tokenId, user.address, points, claimAmount],
       );
-      // Sign with wrong signer
       const signature = await owner.signMessage(ethers.getBytes(message));
 
       await expect(
-        pointsRedemption.connect(user).claim(eventId, claimAmount, claimNonce, signature),
+        pointsRedemption.connect(user).claim(eventId, tokenId, points, claimAmount, signature),
       ).to.be.revertedWith('Invalid signature');
     });
   });
 
   describe('Claiming ERC20', function () {
     const eventId = 2;
+    const tokenId = 0;
     const totalAmount = ethers.parseEther('1000');
+    const points = ethers.parseEther('100');
     const claimAmount = ethers.parseEther('100');
-    const startTime = async () => {
-      const currentBlock = await ethers.provider.getBlock('latest');
-      return (currentBlock?.timestamp || Math.floor(Date.now() / 1000)) + 60;
-    };
-    const minLimit = ethers.parseEther('10');
-    const maxLimit = ethers.parseEther('200');
 
     beforeEach(async function () {
-      // Setup ERC20 redemption event
       await mockToken.mint(owner.address, totalAmount);
       await mockToken.connect(owner).approve(pointsRedemption.getAddress(), totalAmount);
 
-      await pointsRedemption
-        .connect(owner)
-        .createRedemptionEvent(
-          eventId,
-          await mockToken.getAddress(),
-          totalAmount,
-          await startTime(),
-          minLimit,
-          maxLimit,
-        );
+      await pointsRedemption.connect(owner).createRedemptionEvent(eventId);
+
+      await pointsRedemption.connect(owner).addToken(
+        eventId,
+        tokenId,
+        await mockToken.getAddress(),
+        totalAmount,
+        ethers.parseEther('1'), // 1 point = 1 token
+      );
     });
 
     it('Should successfully claim ERC20 tokens with valid signature', async function () {
-      await ethers.provider.send('evm_setNextBlockTimestamp', [(await startTime()) + 1]);
-      await ethers.provider.send('evm_mine', []);
-
-      const claimNonce = 1;
       const message = ethers.solidityPackedKeccak256(
-        ['uint256', 'address', 'uint256', 'uint256'],
-        [eventId, user.address, claimAmount, claimNonce],
+        ['uint256', 'uint256', 'address', 'uint256', 'uint256'],
+        [eventId, tokenId, user.address, points, claimAmount],
       );
       const signature = await signer.signMessage(ethers.getBytes(message));
 
       await expect(
-        pointsRedemption.connect(user).claim(eventId, claimAmount, claimNonce, signature),
+        pointsRedemption.connect(user).claim(eventId, tokenId, points, claimAmount, signature),
       )
         .to.emit(pointsRedemption, 'TokensClaimed')
-        .withArgs(eventId, user.address, claimAmount, claimNonce);
+        .withArgs(eventId, tokenId, user.address, points, claimAmount);
 
       expect(await mockToken.balanceOf(user.address)).to.equal(claimAmount);
     });
+  });
 
-    it('Should not allow claiming before start time', async function () {
-      const claimNonce = 1;
-      const message = ethers.solidityPackedKeccak256(
-        ['uint256', 'address', 'uint256', 'uint256'],
-        [eventId, user.address, claimAmount, claimNonce],
-      );
-      const signature = await signer.signMessage(ethers.getBytes(message));
+  describe('Claiming and Withdrawing', function () {
+    describe('ETH', function () {
+      const eventId = 3;
+      const tokenId = 0;
+      const totalAmount = ethers.parseEther('10');
+      const points = ethers.parseEther('100');
+      const claimAmount = ethers.parseEther('1');
 
-      await expect(
-        pointsRedemption.connect(user).claim(eventId, claimAmount, claimNonce, signature),
-      ).to.be.revertedWith('Event not started');
+      beforeEach(async function () {
+        await pointsRedemption.connect(owner).createRedemptionEvent(eventId);
+        await pointsRedemption.connect(owner).addToken(
+          eventId,
+          tokenId,
+          '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+          totalAmount,
+          ethers.parseEther('0.01'), // 1 point = 0.01 ETH
+          { value: totalAmount },
+        );
+      });
+
+      it('Should withdraw correct remaining ETH after claims', async function () {
+        // Perform claim
+        const message = ethers.solidityPackedKeccak256(
+          ['uint256', 'uint256', 'address', 'uint256', 'uint256'],
+          [eventId, tokenId, user.address, points, claimAmount],
+        );
+        const signature = await signer.signMessage(ethers.getBytes(message));
+        await pointsRedemption
+          .connect(user)
+          .claim(eventId, tokenId, points, claimAmount, signature);
+
+        // Deactivate event for withdrawal
+        await pointsRedemption.connect(owner).createRedemptionEvent(eventId + 1);
+
+        // Check remaining amount before withdrawal
+        const [, , remainingAmount] = await pointsRedemption.getTokenInfo(eventId, tokenId);
+        expect(remainingAmount).to.equal(totalAmount - claimAmount);
+
+        // Withdraw and verify
+        const ownerBalanceBefore = await ethers.provider.getBalance(owner.address);
+        await pointsRedemption.connect(owner).withdrawRemainingToken(eventId, tokenId);
+        const ownerBalanceAfter = await ethers.provider.getBalance(owner.address);
+
+        // Allow for gas costs in the comparison
+        expect(ownerBalanceAfter - ownerBalanceBefore).to.be.closeTo(
+          totalAmount - claimAmount,
+          ethers.parseEther('0.01'),
+        );
+      });
     });
 
-    it('Should not allow claiming below minimum limit', async function () {
-      await ethers.provider.send('evm_setNextBlockTimestamp', [(await startTime()) + 1]);
-      await ethers.provider.send('evm_mine', []);
+    describe('ERC20', function () {
+      const eventId = 4;
+      const tokenId = 0;
+      const totalAmount = ethers.parseEther('1000');
+      const points = ethers.parseEther('100');
+      const claimAmount = ethers.parseEther('100');
 
-      const belowMinAmount = minLimit / 2n; // Half of minimum limit
-      const claimNonce = 1;
-      const message = ethers.solidityPackedKeccak256(
-        ['uint256', 'address', 'uint256', 'uint256'],
-        [eventId, user.address, belowMinAmount, claimNonce],
-      );
-      const signature = await signer.signMessage(ethers.getBytes(message));
+      beforeEach(async function () {
+        await mockToken.mint(owner.address, totalAmount);
+        await mockToken.connect(owner).approve(pointsRedemption.getAddress(), totalAmount);
+        await pointsRedemption.connect(owner).createRedemptionEvent(eventId);
+        await pointsRedemption.connect(owner).addToken(
+          eventId,
+          tokenId,
+          await mockToken.getAddress(),
+          totalAmount,
+          ethers.parseEther('1'), // 1 point = 1 token
+        );
+      });
 
-      await expect(
-        pointsRedemption.connect(user).claim(eventId, belowMinAmount, claimNonce, signature),
-      ).to.be.revertedWith('Below minimum limit');
-    });
+      it('Should withdraw correct remaining ERC20 tokens after claims', async function () {
+        // Perform claim
+        const message = ethers.solidityPackedKeccak256(
+          ['uint256', 'uint256', 'address', 'uint256', 'uint256'],
+          [eventId, tokenId, user.address, points, claimAmount],
+        );
+        const signature = await signer.signMessage(ethers.getBytes(message));
+        await pointsRedemption
+          .connect(user)
+          .claim(eventId, tokenId, points, claimAmount, signature);
 
-    it('Should not allow claiming above maximum limit', async function () {
-      await ethers.provider.send('evm_setNextBlockTimestamp', [(await startTime()) + 1]);
-      await ethers.provider.send('evm_mine', []);
+        // Deactivate event for withdrawal
+        await pointsRedemption.connect(owner).createRedemptionEvent(eventId + 1);
 
-      const aboveMaxAmount = maxLimit + ethers.parseEther('10'); // Above max limit
-      const claimNonce = 1;
-      const message = ethers.solidityPackedKeccak256(
-        ['uint256', 'address', 'uint256', 'uint256'],
-        [eventId, user.address, aboveMaxAmount, claimNonce],
-      );
-      const signature = await signer.signMessage(ethers.getBytes(message));
+        // Check remaining amount before withdrawal
+        const [, , remainingAmount] = await pointsRedemption.getTokenInfo(eventId, tokenId);
+        expect(remainingAmount).to.equal(totalAmount - claimAmount);
 
-      await expect(
-        pointsRedemption.connect(user).claim(eventId, aboveMaxAmount, claimNonce, signature),
-      ).to.be.revertedWith('Exceeds maximum limit');
+        // Withdraw and verify
+        const ownerBalanceBefore = await mockToken.balanceOf(owner.address);
+        await pointsRedemption.connect(owner).withdrawRemainingToken(eventId, tokenId);
+        const ownerBalanceAfter = await mockToken.balanceOf(owner.address);
+
+        expect(ownerBalanceAfter - ownerBalanceBefore).to.equal(totalAmount - claimAmount);
+      });
     });
   });
 });

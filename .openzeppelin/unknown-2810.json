@@ -125,6 +125,11 @@
       "address": "0x5b08b8ec5B9D9a9D0aaD2811893d923c17019ab4",
       "txHash": "0x0aaa893d073478caacbb7a6960285d017cc2694a81de2ab30dbf970bbdec5149",
       "kind": "transparent"
+    },
+    {
+      "address": "0x42dBEA19677CDf7E9C49Fd332657c6819C8DB4f0",
+      "txHash": "0x4c369e3bb964efad574962caa8e7fd94e28d9bd1461e2dc1b934a53bee819459",
+      "kind": "transparent"
     }
   ],
   "impls": {

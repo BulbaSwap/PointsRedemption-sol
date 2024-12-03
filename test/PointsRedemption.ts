@@ -12,6 +12,7 @@ describe('PointsRedemption', function () {
   let user: HardhatEthersSigner;
   let globalSigner: string;
   let factory: PointsRedemption__factory;
+  let mockToken: MockERC20;
 
   beforeEach(async function () {
     const signers = await ethers.getSigners();
@@ -20,15 +21,13 @@ describe('PointsRedemption', function () {
     factory = await ethers.getContractFactory('PointsRedemption');
     globalSigner = signer.address;
 
-    if (!process.env.NETWORK || process.env.NETWORK === 'hardhat') {
-      const contract = await upgrades.deployProxy(factory, [globalSigner], {
-        initializer: 'initialize',
-      });
-      pointsRedemption = factory.attach(await contract.getAddress()) as PointsRedemption;
-    } else {
-      const DEPLOYED_CONTRACT_ADDRESS = '0xbEfea4D934B35510FBe998CA25EA75619546c8be';
-      pointsRedemption = factory.attach(DEPLOYED_CONTRACT_ADDRESS) as PointsRedemption;
-    }
+    const contract = await upgrades.deployProxy(factory, [globalSigner], {
+      initializer: 'initialize',
+    });
+    pointsRedemption = factory.attach(await contract.getAddress()) as PointsRedemption;
+
+    const MockERC20Factory = (await ethers.getContractFactory('MockERC20')) as MockERC20__factory;
+    mockToken = (await MockERC20Factory.deploy()) as MockERC20;
   });
 
   describe('Deployment', function () {
@@ -66,112 +65,115 @@ describe('PointsRedemption', function () {
       ).to.be.revertedWith('Invalid signer address');
     });
 
-    it('Should allow owner to create redemption event with ERC20', async function () {
-      const MockERC20Factory = (await ethers.getContractFactory('MockERC20')) as MockERC20__factory;
-      const token = (await MockERC20Factory.deploy()) as MockERC20;
-      const amount = ethers.parseEther('1000');
+    it('Should allow owner to transfer ownership', async function () {
+      await expect(pointsRedemption.connect(owner).transferOwnership(user.address))
+        .to.emit(pointsRedemption, 'OwnershipTransferred')
+        .withArgs(owner.address, user.address);
 
-      // Approve tokens first
-      await token.mint(owner.address, amount);
-      await token.approve(pointsRedemption.getAddress(), amount);
+      expect(await pointsRedemption.owner()).to.equal(user.address);
 
-      const eventId = 1;
-      const startTime = Math.floor(Date.now() / 1000) + 3600; // 1 hour from now
-
-      await expect(
-        pointsRedemption
-          .connect(owner)
-          .createRedemptionEvent(
-            eventId,
-            await token.getAddress(),
-            amount,
-            startTime,
-            ethers.parseEther('10'),
-            ethers.parseEther('100'),
-          ),
-      )
-        .to.emit(pointsRedemption, 'RedemptionEventCreated')
-        .withArgs(eventId, await token.getAddress(), amount, startTime);
+      // Transfer back to original owner for other tests
+      await pointsRedemption.connect(user).transferOwnership(owner.address);
     });
 
-    it('Should allow owner to create redemption event with ETH', async function () {
-      const eventId = 2;
-      const amount = ethers.parseEther('10');
-      const startTime = Math.floor(Date.now() / 1000) + 3600;
-
+    it('Should not allow non-owner to transfer ownership', async function () {
       await expect(
-        pointsRedemption
-          .connect(owner)
-          .createRedemptionEvent(
-            eventId,
-            ethers.ZeroAddress,
-            amount,
-            startTime,
-            ethers.parseEther('0.1'),
-            ethers.parseEther('1'),
-            { value: amount },
-          ),
-      )
-        .to.emit(pointsRedemption, 'RedemptionEventCreated')
-        .withArgs(eventId, ethers.ZeroAddress, amount, startTime);
-    });
-
-    it('Should not allow non-owner to create redemption event', async function () {
-      const eventId = 3;
-      const amount = ethers.parseEther('10');
-      const startTime = Math.floor(Date.now() / 1000) + 3600;
-
-      await expect(
-        pointsRedemption
-          .connect(user)
-          .createRedemptionEvent(
-            eventId,
-            ethers.ZeroAddress,
-            amount,
-            startTime,
-            ethers.parseEther('0.1'),
-            ethers.parseEther('1'),
-            { value: amount },
-          ),
+        pointsRedemption.connect(user).transferOwnership(user.address),
       ).to.be.revertedWithCustomError(pointsRedemption, 'OwnableUnauthorizedAccount');
     });
 
-    it('Should not allow creating event with past start time', async function () {
-      const eventId = 4;
-      const amount = ethers.parseEther('10');
-      const startTime = Math.floor(Date.now() / 1000) - 3600; // 1 hour ago
+    it('Should not allow transferring ownership to zero address', async function () {
+      await expect(
+        pointsRedemption.connect(owner).transferOwnership(ethers.ZeroAddress),
+      ).to.be.revertedWithCustomError(pointsRedemption, 'OwnableInvalidOwner');
+    });
+  });
+
+  describe('Event Management', function () {
+    const eventId = 1;
+    const tokenId = 0;
+    const amount = ethers.parseEther('1000');
+    const rate = ethers.parseEther('1'); // 1:1 rate
+
+    it('Should allow owner to create redemption event', async function () {
+      await expect(pointsRedemption.connect(owner).createRedemptionEvent(eventId))
+        .to.emit(pointsRedemption, 'RedemptionEventCreated')
+        .withArgs(eventId);
+
+      const [tokenAddress] = await pointsRedemption.getTokenInfo(eventId, tokenId);
+      expect(tokenAddress).to.equal(ethers.ZeroAddress);
+    });
+
+    it('Should not allow creating duplicate event', async function () {
+      await pointsRedemption.connect(owner).createRedemptionEvent(eventId);
+      await mockToken.mint(owner.address, amount);
+      await mockToken.connect(owner).approve(pointsRedemption.getAddress(), amount);
+      await pointsRedemption
+        .connect(owner)
+        .addToken(eventId, tokenId, await mockToken.getAddress(), amount, rate);
+
+      await expect(
+        pointsRedemption.connect(owner).createRedemptionEvent(eventId),
+      ).to.be.revertedWith('Event already exists');
+    });
+
+    it('Should allow adding ERC20 token to event', async function () {
+      await pointsRedemption.connect(owner).createRedemptionEvent(eventId);
+      await mockToken.mint(owner.address, amount);
+      await mockToken.connect(owner).approve(pointsRedemption.getAddress(), amount);
 
       await expect(
         pointsRedemption
           .connect(owner)
-          .createRedemptionEvent(
-            eventId,
-            ethers.ZeroAddress,
-            amount,
-            startTime,
-            ethers.parseEther('0.1'),
-            ethers.parseEther('1'),
-            { value: amount },
-          ),
-      ).to.be.revertedWith('Start time must be in future');
+          .addToken(eventId, tokenId, await mockToken.getAddress(), amount, rate),
+      )
+        .to.emit(pointsRedemption, 'TokenAdded')
+        .withArgs(eventId, tokenId, await mockToken.getAddress(), amount, rate);
+
+      const [tokenAddress, totalAmount, remainingAmount, tokenRate] =
+        await pointsRedemption.getTokenInfo(eventId, tokenId);
+      expect(tokenAddress).to.equal(await mockToken.getAddress());
+      expect(totalAmount).to.equal(amount);
+      expect(remainingAmount).to.equal(amount);
+      expect(tokenRate).to.equal(rate);
     });
 
-    it('Should not allow creating event with invalid limits', async function () {
-      const eventId = 5;
-      const amount = ethers.parseEther('10');
-      const startTime = Math.floor(Date.now() / 1000) + 3600;
+    it('Should allow adding ETH token to event', async function () {
+      await pointsRedemption.connect(owner).createRedemptionEvent(eventId);
 
       await expect(
-        pointsRedemption.connect(owner).createRedemptionEvent(
-          eventId,
-          ethers.ZeroAddress,
-          amount,
-          startTime,
-          ethers.parseEther('1'),
-          ethers.parseEther('0.5'), // max < min
-          { value: amount },
-        ),
-      ).to.be.revertedWith('Invalid limits');
+        pointsRedemption
+          .connect(owner)
+          .addToken(eventId, tokenId, '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE', amount, rate, {
+            value: amount,
+          }),
+      )
+        .to.emit(pointsRedemption, 'TokenAdded')
+        .withArgs(eventId, tokenId, '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE', amount, rate);
+    });
+
+    it('Should not allow adding token to inactive event', async function () {
+      await expect(
+        pointsRedemption
+          .connect(owner)
+          .addToken(eventId, tokenId, await mockToken.getAddress(), amount, rate),
+      ).to.be.revertedWith('Event not active');
+    });
+
+    it('Should not allow adding duplicate token ID', async function () {
+      await pointsRedemption.connect(owner).createRedemptionEvent(eventId);
+      await mockToken.mint(owner.address, amount);
+      await mockToken.connect(owner).approve(pointsRedemption.getAddress(), amount);
+
+      await pointsRedemption
+        .connect(owner)
+        .addToken(eventId, tokenId, await mockToken.getAddress(), amount, rate);
+
+      await expect(
+        pointsRedemption
+          .connect(owner)
+          .addToken(eventId, tokenId, await mockToken.getAddress(), amount, rate),
+      ).to.be.revertedWith('Token already added');
     });
   });
 
@@ -201,6 +203,106 @@ describe('PointsRedemption', function () {
 
       expect(await upgraded.globalSigner()).to.equal(user.address);
       await upgraded.connect(owner).setGlobalSigner(globalSigner);
+    });
+  });
+
+  describe('Withdrawals', function () {
+    const eventId = 1;
+    const tokenId = 0;
+    const amount = ethers.parseEther('1000');
+    const rate = ethers.parseEther('1');
+
+    beforeEach(async function () {
+      // Create event
+      await pointsRedemption.connect(owner).createRedemptionEvent(eventId);
+
+      // Add first token
+      await mockToken.mint(owner.address, amount);
+      await mockToken.connect(owner).approve(pointsRedemption.getAddress(), amount);
+      await pointsRedemption
+        .connect(owner)
+        .addToken(eventId, tokenId, await mockToken.getAddress(), amount, rate);
+
+      // Add second token
+      const tokenId2 = 1;
+      await mockToken.mint(owner.address, amount);
+      await mockToken.connect(owner).approve(pointsRedemption.getAddress(), amount);
+      await pointsRedemption
+        .connect(owner)
+        .addToken(eventId, tokenId2, await mockToken.getAddress(), amount, rate);
+
+      // Deactivate event for withdrawal
+      await pointsRedemption.connect(owner).createRedemptionEvent(eventId + 1);
+    });
+
+    it('Should allow withdrawing remaining token amount', async function () {
+      const ownerBalanceBefore = await mockToken.balanceOf(owner.address);
+
+      await pointsRedemption.connect(owner).withdrawRemainingToken(eventId, tokenId);
+
+      const ownerBalanceAfter = await mockToken.balanceOf(owner.address);
+      expect(ownerBalanceAfter - ownerBalanceBefore).to.equal(amount);
+
+      const [, , remainingAmount] = await pointsRedemption.getTokenInfo(eventId, tokenId);
+      expect(remainingAmount).to.equal(0);
+    });
+
+    it('Should allow withdrawing all tokens from an event', async function () {
+      const ownerBalanceBefore = await mockToken.balanceOf(owner.address);
+
+      await pointsRedemption.connect(owner).withdrawEventTokens(eventId);
+
+      const ownerBalanceAfter = await mockToken.balanceOf(owner.address);
+      expect(ownerBalanceAfter - ownerBalanceBefore).to.equal(amount * 2n);
+
+      const [, , remainingAmount1] = await pointsRedemption.getTokenInfo(eventId, tokenId);
+      const [, , remainingAmount2] = await pointsRedemption.getTokenInfo(eventId, 1); // tokenId2
+      expect(remainingAmount1).to.equal(0);
+      expect(remainingAmount2).to.equal(0);
+    });
+
+    it('Should allow withdrawing tokens from a range of events', async function () {
+      // Create and add token to event 2
+      const eventId2 = 2;
+      await pointsRedemption.connect(owner).createRedemptionEvent(eventId2);
+      await mockToken.mint(owner.address, amount);
+      await mockToken.connect(owner).approve(pointsRedemption.getAddress(), amount);
+      await pointsRedemption
+        .connect(owner)
+        .addToken(eventId2, tokenId, await mockToken.getAddress(), amount, rate);
+
+      // Deactivate event 2
+      await pointsRedemption.connect(owner).createRedemptionEvent(eventId2 + 1);
+
+      const ownerBalanceBefore = await mockToken.balanceOf(owner.address);
+
+      await pointsRedemption.connect(owner).withdrawAllTokensInRange(eventId, eventId2);
+
+      const ownerBalanceAfter = await mockToken.balanceOf(owner.address);
+      expect(ownerBalanceAfter - ownerBalanceBefore).to.equal(amount * 3n); // 2 tokens from event1 + 1 token from event2
+
+      // Check all tokens have been withdrawn
+      const [, , remainingAmount1] = await pointsRedemption.getTokenInfo(eventId, tokenId);
+      const [, , remainingAmount2] = await pointsRedemption.getTokenInfo(eventId, 1);
+      const [, , remainingAmount3] = await pointsRedemption.getTokenInfo(eventId2, tokenId);
+      expect(remainingAmount1).to.equal(0);
+      expect(remainingAmount2).to.equal(0);
+      expect(remainingAmount3).to.equal(0);
+    });
+
+    it('Should skip non-existent events in range withdrawal', async function () {
+      const ownerBalanceBefore = await mockToken.balanceOf(owner.address);
+
+      // Try to withdraw from a range including non-existent event
+      await pointsRedemption.connect(owner).withdrawAllTokensInRange(eventId, eventId + 2);
+
+      const ownerBalanceAfter = await mockToken.balanceOf(owner.address);
+      expect(ownerBalanceAfter - ownerBalanceBefore).to.equal(amount * 2n); // Only tokens from event1
+
+      const [, , remainingAmount1] = await pointsRedemption.getTokenInfo(eventId, tokenId);
+      const [, , remainingAmount2] = await pointsRedemption.getTokenInfo(eventId, 1);
+      expect(remainingAmount1).to.equal(0);
+      expect(remainingAmount2).to.equal(0);
     });
   });
 });
