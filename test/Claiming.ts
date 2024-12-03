@@ -33,36 +33,30 @@ describe('Claiming', function () {
     const eventId = 1;
     const tokenId = 0;
     const totalAmount = ethers.parseEther('10');
-    const points = ethers.parseEther('100');
     const claimAmount = ethers.parseEther('1');
 
     beforeEach(async function () {
       await pointsRedemption.connect(owner).createRedemptionEvent(eventId);
 
-      await pointsRedemption.connect(owner).addToken(
-        eventId,
-        tokenId,
-        '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
-        totalAmount,
-        ethers.parseEther('0.01'), // 1 point = 0.01 ETH
-        { value: totalAmount },
-      );
+      await pointsRedemption
+        .connect(owner)
+        .addToken(eventId, tokenId, '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE', totalAmount, {
+          value: totalAmount,
+        });
     });
 
     it('Should successfully claim ETH with valid signature', async function () {
       const message = ethers.solidityPackedKeccak256(
-        ['uint256', 'uint256', 'address', 'uint256', 'uint256'],
-        [eventId, tokenId, user.address, points, claimAmount],
+        ['uint256', 'uint256', 'address', 'uint256'],
+        [eventId, tokenId, user.address, claimAmount],
       );
       const signature = await signer.signMessage(ethers.getBytes(message));
 
       const initialBalance = await ethers.provider.getBalance(user.address);
 
-      await expect(
-        pointsRedemption.connect(user).claim(eventId, tokenId, points, claimAmount, signature),
-      )
+      await expect(pointsRedemption.connect(user).claim(eventId, tokenId, claimAmount, signature))
         .to.emit(pointsRedemption, 'TokensClaimed')
-        .withArgs(eventId, tokenId, user.address, points, claimAmount);
+        .withArgs(eventId, tokenId, user.address, claimAmount);
 
       const finalBalance = await ethers.provider.getBalance(user.address);
       expect(finalBalance - initialBalance).to.be.closeTo(claimAmount, ethers.parseEther('0.01'));
@@ -70,27 +64,27 @@ describe('Claiming', function () {
 
     it('Should not allow duplicate claims with same signature', async function () {
       const message = ethers.solidityPackedKeccak256(
-        ['uint256', 'uint256', 'address', 'uint256', 'uint256'],
-        [eventId, tokenId, user.address, points, claimAmount],
+        ['uint256', 'uint256', 'address', 'uint256'],
+        [eventId, tokenId, user.address, claimAmount],
       );
       const signature = await signer.signMessage(ethers.getBytes(message));
 
-      await pointsRedemption.connect(user).claim(eventId, tokenId, points, claimAmount, signature);
+      await pointsRedemption.connect(user).claim(eventId, tokenId, claimAmount, signature);
 
       await expect(
-        pointsRedemption.connect(user).claim(eventId, tokenId, points, claimAmount, signature),
+        pointsRedemption.connect(user).claim(eventId, tokenId, claimAmount, signature),
       ).to.be.revertedWith('Claim already used');
     });
 
     it('Should not allow claiming with invalid signature', async function () {
       const message = ethers.solidityPackedKeccak256(
-        ['uint256', 'uint256', 'address', 'uint256', 'uint256'],
-        [eventId, tokenId, user.address, points, claimAmount],
+        ['uint256', 'uint256', 'address', 'uint256'],
+        [eventId, tokenId, user.address, claimAmount],
       );
       const signature = await owner.signMessage(ethers.getBytes(message));
 
       await expect(
-        pointsRedemption.connect(user).claim(eventId, tokenId, points, claimAmount, signature),
+        pointsRedemption.connect(user).claim(eventId, tokenId, claimAmount, signature),
       ).to.be.revertedWith('Invalid signature');
     });
   });
@@ -99,36 +93,27 @@ describe('Claiming', function () {
     const eventId = 2;
     const tokenId = 0;
     const totalAmount = ethers.parseEther('1000');
-    const points = ethers.parseEther('100');
     const claimAmount = ethers.parseEther('100');
 
     beforeEach(async function () {
       await mockToken.mint(owner.address, totalAmount);
       await mockToken.connect(owner).approve(pointsRedemption.getAddress(), totalAmount);
-
       await pointsRedemption.connect(owner).createRedemptionEvent(eventId);
-
-      await pointsRedemption.connect(owner).addToken(
-        eventId,
-        tokenId,
-        await mockToken.getAddress(),
-        totalAmount,
-        ethers.parseEther('1'), // 1 point = 1 token
-      );
+      await pointsRedemption
+        .connect(owner)
+        .addToken(eventId, tokenId, await mockToken.getAddress(), totalAmount);
     });
 
     it('Should successfully claim ERC20 tokens with valid signature', async function () {
       const message = ethers.solidityPackedKeccak256(
-        ['uint256', 'uint256', 'address', 'uint256', 'uint256'],
-        [eventId, tokenId, user.address, points, claimAmount],
+        ['uint256', 'uint256', 'address', 'uint256'],
+        [eventId, tokenId, user.address, claimAmount],
       );
       const signature = await signer.signMessage(ethers.getBytes(message));
 
-      await expect(
-        pointsRedemption.connect(user).claim(eventId, tokenId, points, claimAmount, signature),
-      )
+      await expect(pointsRedemption.connect(user).claim(eventId, tokenId, claimAmount, signature))
         .to.emit(pointsRedemption, 'TokensClaimed')
-        .withArgs(eventId, tokenId, user.address, points, claimAmount);
+        .withArgs(eventId, tokenId, user.address, claimAmount);
 
       expect(await mockToken.balanceOf(user.address)).to.equal(claimAmount);
     });
@@ -144,26 +129,21 @@ describe('Claiming', function () {
 
       beforeEach(async function () {
         await pointsRedemption.connect(owner).createRedemptionEvent(eventId);
-        await pointsRedemption.connect(owner).addToken(
-          eventId,
-          tokenId,
-          '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
-          totalAmount,
-          ethers.parseEther('0.01'), // 1 point = 0.01 ETH
-          { value: totalAmount },
-        );
+        await pointsRedemption
+          .connect(owner)
+          .addToken(eventId, tokenId, '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE', totalAmount, {
+            value: totalAmount,
+          });
       });
 
       it('Should withdraw correct remaining ETH after claims', async function () {
         // Perform claim
         const message = ethers.solidityPackedKeccak256(
-          ['uint256', 'uint256', 'address', 'uint256', 'uint256'],
-          [eventId, tokenId, user.address, points, claimAmount],
+          ['uint256', 'uint256', 'address', 'uint256'],
+          [eventId, tokenId, user.address, claimAmount],
         );
         const signature = await signer.signMessage(ethers.getBytes(message));
-        await pointsRedemption
-          .connect(user)
-          .claim(eventId, tokenId, points, claimAmount, signature);
+        await pointsRedemption.connect(user).claim(eventId, tokenId, claimAmount, signature);
 
         // Deactivate event for withdrawal
         await pointsRedemption.connect(owner).createRedemptionEvent(eventId + 1);
@@ -196,25 +176,19 @@ describe('Claiming', function () {
         await mockToken.mint(owner.address, totalAmount);
         await mockToken.connect(owner).approve(pointsRedemption.getAddress(), totalAmount);
         await pointsRedemption.connect(owner).createRedemptionEvent(eventId);
-        await pointsRedemption.connect(owner).addToken(
-          eventId,
-          tokenId,
-          await mockToken.getAddress(),
-          totalAmount,
-          ethers.parseEther('1'), // 1 point = 1 token
-        );
+        await pointsRedemption
+          .connect(owner)
+          .addToken(eventId, tokenId, await mockToken.getAddress(), totalAmount);
       });
 
       it('Should withdraw correct remaining ERC20 tokens after claims', async function () {
         // Perform claim
         const message = ethers.solidityPackedKeccak256(
-          ['uint256', 'uint256', 'address', 'uint256', 'uint256'],
-          [eventId, tokenId, user.address, points, claimAmount],
+          ['uint256', 'uint256', 'address', 'uint256'],
+          [eventId, tokenId, user.address, claimAmount],
         );
         const signature = await signer.signMessage(ethers.getBytes(message));
-        await pointsRedemption
-          .connect(user)
-          .claim(eventId, tokenId, points, claimAmount, signature);
+        await pointsRedemption.connect(user).claim(eventId, tokenId, claimAmount, signature);
 
         // Deactivate event for withdrawal
         await pointsRedemption.connect(owner).createRedemptionEvent(eventId + 1);

@@ -18,20 +18,12 @@ contract PointsRedemption is Initializable, OwnableUpgradeable, ReentrancyGuardU
         address tokenAddress;
         uint256 totalAmount;
         uint256 remainingAmount;
-        uint256 rate; // Multiplied by 1e18 for precision
     }
 
     struct RedemptionEvent {
         bool isActive;
         mapping(uint256 => TokenInfo) tokens; // tokenId => TokenInfo
         uint256 tokenCount;
-    }
-
-    struct TokenInfoView {
-        address tokenAddress;
-        uint256 totalAmount;
-        uint256 remainingAmount;
-        uint256 rate;
     }
 
     address public globalSigner;
@@ -45,15 +37,13 @@ contract PointsRedemption is Initializable, OwnableUpgradeable, ReentrancyGuardU
         uint256 indexed eventId,
         uint256 indexed tokenId,
         address tokenAddress,
-        uint256 totalAmount,
-        uint256 rate
+        uint256 totalAmount
     );
 
     event TokensClaimed(
         uint256 indexed eventId,
         uint256 indexed tokenId,
         address indexed user,
-        uint256 points,
         uint256 amount
     );
 
@@ -96,8 +86,7 @@ contract PointsRedemption is Initializable, OwnableUpgradeable, ReentrancyGuardU
         uint256 eventId,
         uint256 tokenId,
         address tokenAddress,
-        uint256 totalAmount,
-        uint256 rate
+        uint256 totalAmount
     ) external payable onlyOwner {
         RedemptionEvent storage event_ = redemptionEvents[eventId];
         require(event_.isActive, "Event not active");
@@ -113,18 +102,16 @@ contract PointsRedemption is Initializable, OwnableUpgradeable, ReentrancyGuardU
         event_.tokens[tokenId] = TokenInfo({
             tokenAddress: tokenAddress,
             totalAmount: totalAmount,
-            remainingAmount: totalAmount,
-            rate: rate
+            remainingAmount: totalAmount
         });
         event_.tokenCount++;
 
-        emit TokenAdded(eventId, tokenId, tokenAddress, totalAmount, rate);
+        emit TokenAdded(eventId, tokenId, tokenAddress, totalAmount);
     }
 
     function claim(
         uint256 eventId,
         uint256 tokenId,
-        uint256 points,
         uint256 amount,
         bytes memory signature
     ) external nonReentrant {
@@ -133,9 +120,7 @@ contract PointsRedemption is Initializable, OwnableUpgradeable, ReentrancyGuardU
         TokenInfo storage token = event_.tokens[tokenId];
         require(token.tokenAddress != address(0), "Token not found");
 
-        bytes32 messageHash = keccak256(
-            abi.encodePacked(eventId, tokenId, msg.sender, points, amount)
-        );
+        bytes32 messageHash = keccak256(abi.encodePacked(eventId, tokenId, msg.sender, amount));
         bytes32 ethSignedMessageHash = messageHash.toEthSignedMessageHash();
         address recoveredSigner = ethSignedMessageHash.recover(signature);
 
@@ -143,10 +128,7 @@ contract PointsRedemption is Initializable, OwnableUpgradeable, ReentrancyGuardU
         require(!usedSignatures[messageHash], "Claim already used");
         require(token.remainingAmount >= amount, "Insufficient remaining amount");
 
-        uint256 newTotal = userTotalRedeemed[eventId][msg.sender] + points;
-
         usedSignatures[messageHash] = true;
-        userTotalRedeemed[eventId][msg.sender] = newTotal;
         token.remainingAmount -= amount;
 
         if (token.tokenAddress == ETH) {
@@ -156,7 +138,7 @@ contract PointsRedemption is Initializable, OwnableUpgradeable, ReentrancyGuardU
             IERC20(token.tokenAddress).transfer(msg.sender, amount);
         }
 
-        emit TokensClaimed(eventId, tokenId, msg.sender, points, amount);
+        emit TokensClaimed(eventId, tokenId, msg.sender, amount);
     }
 
     function withdrawRemainingToken(uint256 eventId, uint256 tokenId) external onlyOwner {
@@ -230,28 +212,23 @@ contract PointsRedemption is Initializable, OwnableUpgradeable, ReentrancyGuardU
     function getTokenInfo(
         uint256 eventId,
         uint256 tokenId
-    )
-        external
-        view
-        returns (address tokenAddress, uint256 totalAmount, uint256 remainingAmount, uint256 rate)
-    {
+    ) external view returns (address tokenAddress, uint256 totalAmount, uint256 remainingAmount) {
         TokenInfo storage token = redemptionEvents[eventId].tokens[tokenId];
-        return (token.tokenAddress, token.totalAmount, token.remainingAmount, token.rate);
+        return (token.tokenAddress, token.totalAmount, token.remainingAmount);
     }
 
     function getEventInfo(
         uint256 eventId
-    ) external view returns (bool isActive, uint256 tokenCount, TokenInfoView[] memory tokens) {
+    ) external view returns (bool isActive, uint256 tokenCount, TokenInfo[] memory tokens) {
         RedemptionEvent storage event_ = redemptionEvents[eventId];
-        tokens = new TokenInfoView[](event_.tokenCount);
+        tokens = new TokenInfo[](event_.tokenCount);
 
         for (uint256 i = 0; i < event_.tokenCount; i++) {
             TokenInfo storage token = event_.tokens[i];
-            tokens[i] = TokenInfoView({
+            tokens[i] = TokenInfo({
                 tokenAddress: token.tokenAddress,
                 totalAmount: token.totalAmount,
-                remainingAmount: token.remainingAmount,
-                rate: token.rate
+                remainingAmount: token.remainingAmount
             });
         }
 
