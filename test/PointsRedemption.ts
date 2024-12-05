@@ -91,7 +91,6 @@ describe('PointsRedemption', function () {
 
   describe('Event Management', function () {
     const eventId = 1;
-    const tokenId = 0;
     const amount = ethers.parseEther('1000');
 
     it('Should allow owner to create redemption event', async function () {
@@ -99,7 +98,10 @@ describe('PointsRedemption', function () {
         .to.emit(pointsRedemption, 'RedemptionEventCreated')
         .withArgs(eventId);
 
-      const [tokenAddress] = await pointsRedemption.getTokenInfo(eventId, tokenId);
+      const [tokenAddress] = await pointsRedemption.getTokenInfo(
+        eventId,
+        await mockToken.getAddress(),
+      );
       expect(tokenAddress).to.equal(ethers.ZeroAddress);
     });
 
@@ -107,9 +109,7 @@ describe('PointsRedemption', function () {
       await pointsRedemption.connect(owner).createRedemptionEvent(eventId);
       await mockToken.mint(owner.address, amount);
       await mockToken.connect(owner).approve(pointsRedemption.getAddress(), amount);
-      await pointsRedemption
-        .connect(owner)
-        .addToken(eventId, tokenId, await mockToken.getAddress(), amount);
+      await pointsRedemption.connect(owner).addToken(eventId, await mockToken.getAddress(), amount);
 
       await expect(
         pointsRedemption.connect(owner).createRedemptionEvent(eventId),
@@ -122,16 +122,14 @@ describe('PointsRedemption', function () {
       await mockToken.connect(owner).approve(pointsRedemption.getAddress(), amount);
 
       await expect(
-        pointsRedemption
-          .connect(owner)
-          .addToken(eventId, tokenId, await mockToken.getAddress(), amount),
+        pointsRedemption.connect(owner).addToken(eventId, await mockToken.getAddress(), amount),
       )
         .to.emit(pointsRedemption, 'TokenAdded')
-        .withArgs(eventId, tokenId, await mockToken.getAddress(), amount);
+        .withArgs(eventId, await mockToken.getAddress(), amount);
 
       const [tokenAddress, totalAmount, remainingAmount] = await pointsRedemption.getTokenInfo(
         eventId,
-        tokenId,
+        await mockToken.getAddress(),
       );
       expect(tokenAddress).to.equal(await mockToken.getAddress());
       expect(totalAmount).to.equal(amount);
@@ -144,35 +142,29 @@ describe('PointsRedemption', function () {
       await expect(
         pointsRedemption
           .connect(owner)
-          .addToken(eventId, tokenId, '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE', amount, {
+          .addToken(eventId, '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE', amount, {
             value: amount,
           }),
       )
         .to.emit(pointsRedemption, 'TokenAdded')
-        .withArgs(eventId, tokenId, '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE', amount);
+        .withArgs(eventId, '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE', amount);
     });
 
     it('Should not allow adding token to inactive event', async function () {
       await expect(
-        pointsRedemption
-          .connect(owner)
-          .addToken(eventId, tokenId, await mockToken.getAddress(), amount),
+        pointsRedemption.connect(owner).addToken(eventId, await mockToken.getAddress(), amount),
       ).to.be.revertedWith('Event not active');
     });
 
-    it('Should not allow adding duplicate token ID', async function () {
+    it('Should not allow adding duplicate token', async function () {
       await pointsRedemption.connect(owner).createRedemptionEvent(eventId);
       await mockToken.mint(owner.address, amount);
       await mockToken.connect(owner).approve(pointsRedemption.getAddress(), amount);
 
-      await pointsRedemption
-        .connect(owner)
-        .addToken(eventId, tokenId, await mockToken.getAddress(), amount);
+      await pointsRedemption.connect(owner).addToken(eventId, await mockToken.getAddress(), amount);
 
       await expect(
-        pointsRedemption
-          .connect(owner)
-          .addToken(eventId, tokenId, await mockToken.getAddress(), amount),
+        pointsRedemption.connect(owner).addToken(eventId, await mockToken.getAddress(), amount),
       ).to.be.revertedWith('Token already added');
     });
   });
@@ -208,54 +200,70 @@ describe('PointsRedemption', function () {
 
   describe('Withdrawals', function () {
     const eventId = 1;
-    const tokenId = 0;
     const amount = ethers.parseEther('1000');
+    let token1: MockERC20;
+    let token2: MockERC20;
 
     beforeEach(async function () {
+      // Deploy two different mock tokens
+      const MockERC20Factory = (await ethers.getContractFactory('MockERC20')) as MockERC20__factory;
+      token1 = (await MockERC20Factory.deploy()) as MockERC20;
+      token2 = (await MockERC20Factory.deploy()) as MockERC20;
+
       // Create event
       await pointsRedemption.connect(owner).createRedemptionEvent(eventId);
 
       // Add first token
-      await mockToken.mint(owner.address, amount);
-      await mockToken.connect(owner).approve(pointsRedemption.getAddress(), amount);
-      await pointsRedemption
-        .connect(owner)
-        .addToken(eventId, tokenId, await mockToken.getAddress(), amount);
+      await token1.mint(owner.address, amount);
+      await token1.connect(owner).approve(pointsRedemption.getAddress(), amount);
+      await pointsRedemption.connect(owner).addToken(eventId, await token1.getAddress(), amount);
 
       // Add second token
-      const tokenId2 = 1;
-      await mockToken.mint(owner.address, amount);
-      await mockToken.connect(owner).approve(pointsRedemption.getAddress(), amount);
-      await pointsRedemption
-        .connect(owner)
-        .addToken(eventId, tokenId2, await mockToken.getAddress(), amount);
+      await token2.mint(owner.address, amount);
+      await token2.connect(owner).approve(pointsRedemption.getAddress(), amount);
+      await pointsRedemption.connect(owner).addToken(eventId, await token2.getAddress(), amount);
 
       // Deactivate event for withdrawal
       await pointsRedemption.connect(owner).createRedemptionEvent(eventId + 1);
     });
 
     it('Should allow withdrawing remaining token amount', async function () {
-      const ownerBalanceBefore = await mockToken.balanceOf(owner.address);
+      const ownerBalanceBefore = await token1.balanceOf(owner.address);
 
-      await pointsRedemption.connect(owner).withdrawRemainingToken(eventId, tokenId);
+      await pointsRedemption
+        .connect(owner)
+        .withdrawRemainingToken(eventId, await token1.getAddress());
 
-      const ownerBalanceAfter = await mockToken.balanceOf(owner.address);
+      const ownerBalanceAfter = await token1.balanceOf(owner.address);
       expect(ownerBalanceAfter - ownerBalanceBefore).to.equal(amount);
 
-      const [, , remainingAmount] = await pointsRedemption.getTokenInfo(eventId, tokenId);
+      const [, , remainingAmount] = await pointsRedemption.getTokenInfo(
+        eventId,
+        await token1.getAddress(),
+      );
       expect(remainingAmount).to.equal(0);
     });
 
     it('Should allow withdrawing all tokens from an event', async function () {
-      const ownerBalanceBefore = await mockToken.balanceOf(owner.address);
+      const ownerBalanceBefore1 = await token1.balanceOf(owner.address);
+      const ownerBalanceBefore2 = await token2.balanceOf(owner.address);
 
       await pointsRedemption.connect(owner).withdrawEventTokens(eventId);
 
-      const ownerBalanceAfter = await mockToken.balanceOf(owner.address);
-      expect(ownerBalanceAfter - ownerBalanceBefore).to.equal(amount * 2n);
+      const ownerBalanceAfter1 = await token1.balanceOf(owner.address);
+      const ownerBalanceAfter2 = await token2.balanceOf(owner.address);
 
-      const [, , remainingAmount1] = await pointsRedemption.getTokenInfo(eventId, tokenId);
-      const [, , remainingAmount2] = await pointsRedemption.getTokenInfo(eventId, 1); // tokenId2
+      expect(ownerBalanceAfter1 - ownerBalanceBefore1).to.equal(amount);
+      expect(ownerBalanceAfter2 - ownerBalanceBefore2).to.equal(amount);
+
+      const [, , remainingAmount1] = await pointsRedemption.getTokenInfo(
+        eventId,
+        await token1.getAddress(),
+      );
+      const [, , remainingAmount2] = await pointsRedemption.getTokenInfo(
+        eventId,
+        await token2.getAddress(),
+      );
       expect(remainingAmount1).to.equal(0);
       expect(remainingAmount2).to.equal(0);
     });
@@ -263,42 +271,62 @@ describe('PointsRedemption', function () {
     it('Should allow withdrawing tokens from a range of events', async function () {
       const eventId2 = 2;
       await pointsRedemption.connect(owner).createRedemptionEvent(eventId2);
-      await mockToken.mint(owner.address, amount);
-      await mockToken.connect(owner).approve(pointsRedemption.getAddress(), amount);
-      await pointsRedemption
-        .connect(owner)
-        .addToken(eventId2, tokenId, await mockToken.getAddress(), amount);
+      await token1.mint(owner.address, amount);
+      await token1.connect(owner).approve(pointsRedemption.getAddress(), amount);
+      await pointsRedemption.connect(owner).addToken(eventId2, await token1.getAddress(), amount);
 
       // Deactivate event 2
       await pointsRedemption.connect(owner).createRedemptionEvent(eventId2 + 1);
 
-      const ownerBalanceBefore = await mockToken.balanceOf(owner.address);
+      const ownerBalanceBefore1 = await token1.balanceOf(owner.address);
+      const ownerBalanceBefore2 = await token2.balanceOf(owner.address);
 
       await pointsRedemption.connect(owner).withdrawAllTokensInRange(eventId, eventId2);
 
-      const ownerBalanceAfter = await mockToken.balanceOf(owner.address);
-      expect(ownerBalanceAfter - ownerBalanceBefore).to.equal(amount * 3n); // 2 tokens from event1 + 1 token from event2
+      const ownerBalanceAfter1 = await token1.balanceOf(owner.address);
+      const ownerBalanceAfter2 = await token2.balanceOf(owner.address);
 
-      // Check all tokens have been withdrawn
-      const [, , remainingAmount1] = await pointsRedemption.getTokenInfo(eventId, tokenId);
-      const [, , remainingAmount2] = await pointsRedemption.getTokenInfo(eventId, 1);
-      const [, , remainingAmount3] = await pointsRedemption.getTokenInfo(eventId2, tokenId);
+      expect(ownerBalanceAfter1 - ownerBalanceBefore1).to.equal(amount * 2n); // From both events
+      expect(ownerBalanceAfter2 - ownerBalanceBefore2).to.equal(amount); // Only from first event
+
+      const [, , remainingAmount1] = await pointsRedemption.getTokenInfo(
+        eventId,
+        await token1.getAddress(),
+      );
+      const [, , remainingAmount2] = await pointsRedemption.getTokenInfo(
+        eventId,
+        await token2.getAddress(),
+      );
+      const [, , remainingAmount3] = await pointsRedemption.getTokenInfo(
+        eventId2,
+        await token1.getAddress(),
+      );
       expect(remainingAmount1).to.equal(0);
       expect(remainingAmount2).to.equal(0);
       expect(remainingAmount3).to.equal(0);
     });
 
     it('Should skip non-existent events in range withdrawal', async function () {
-      const ownerBalanceBefore = await mockToken.balanceOf(owner.address);
+      const ownerBalanceBefore1 = await token1.balanceOf(owner.address);
+      const ownerBalanceBefore2 = await token2.balanceOf(owner.address);
 
       // Try to withdraw from a range including non-existent event
       await pointsRedemption.connect(owner).withdrawAllTokensInRange(eventId, eventId + 2);
 
-      const ownerBalanceAfter = await mockToken.balanceOf(owner.address);
-      expect(ownerBalanceAfter - ownerBalanceBefore).to.equal(amount * 2n); // Only tokens from event1
+      const ownerBalanceAfter1 = await token1.balanceOf(owner.address);
+      const ownerBalanceAfter2 = await token2.balanceOf(owner.address);
 
-      const [, , remainingAmount1] = await pointsRedemption.getTokenInfo(eventId, tokenId);
-      const [, , remainingAmount2] = await pointsRedemption.getTokenInfo(eventId, 1);
+      expect(ownerBalanceAfter1 - ownerBalanceBefore1).to.equal(amount); // Only from event1
+      expect(ownerBalanceAfter2 - ownerBalanceBefore2).to.equal(amount); // Only from event1
+
+      const [, , remainingAmount1] = await pointsRedemption.getTokenInfo(
+        eventId,
+        await token1.getAddress(),
+      );
+      const [, , remainingAmount2] = await pointsRedemption.getTokenInfo(
+        eventId,
+        await token2.getAddress(),
+      );
       expect(remainingAmount1).to.equal(0);
       expect(remainingAmount2).to.equal(0);
     });

@@ -30,7 +30,9 @@
     "test:holesky": "npx hardhat test test/PointsRedemption.ts --network morphHolesky && npx hardhat test test/Claiming.ts --network morphHolesky",
     "test:morph": "npx hardhat test test/PointsRedemption.ts --network morph && npx hardhat test test/Claiming.ts --network morph",
     "deploy:holesky": "hardhat run scripts/deploy.ts --network morphHolesky",
-    "deploy:morph": "hardhat run scripts/deploy.ts --network morph"
+    "deploy:morph": "hardhat run scripts/deploy.ts --network morph",
+    "verify:holesky": "hardhat verify --network morphHolesky",
+    "verify:morph": "hardhat verify --network morph"
   },
   "dependencies": {
     "@openzeppelin/contracts": "^5.1.0",

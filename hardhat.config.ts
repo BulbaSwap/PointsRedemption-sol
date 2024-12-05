@@ -17,6 +17,9 @@ const config: HardhatUserConfig = {
       },
     },
   },
+  sourcify: {
+    enabled: false,
+  },
   networks: {
     morph: {
       url: 'https://rpc.morphl2.io',
@@ -34,6 +37,30 @@ const config: HardhatUserConfig = {
       timeout: 60000,
       gasPrice: 'auto',
     },
+  },
+  etherscan: {
+    apiKey: {
+      morph: 'no-api-key-required',
+      morphHolesky: 'no-api-key-required',
+    },
+    customChains: [
+      {
+        network: 'morph',
+        chainId: 2818,
+        urls: {
+          apiURL: 'https://explorer-api.morphl2.io/api',
+          browserURL: 'https://explorer.morphl2.io',
+        },
+      },
+      {
+        network: 'morphHolesky',
+        chainId: 2810,
+        urls: {
+          apiURL: 'https://explorer-api-holesky.morphl2.io/api',
+          browserURL: 'https://explorer-holesky.morphl2.io',
+        },
+      },
+    ],
   },
   typechain: {
     outDir: 'typechain-types',
