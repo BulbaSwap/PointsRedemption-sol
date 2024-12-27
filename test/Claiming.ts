@@ -86,6 +86,23 @@ describe('Claiming', function () {
         pointsRedemption.connect(user).claim(eventId, ETH_ADDRESS, claimAmount, signature),
       ).to.be.revertedWith('Invalid signature');
     });
+
+    it('Should mark signature as used after successful claim', async function () {
+      const message = ethers.solidityPackedKeccak256(
+        ['uint16', 'address', 'address', 'uint256'],
+        [eventId, ETH_ADDRESS, user.address, claimAmount],
+      );
+      const signature = await signer.signMessage(ethers.getBytes(message));
+
+      await pointsRedemption.connect(user).claim(eventId, ETH_ADDRESS, claimAmount, signature);
+
+      // Check if signature is marked as used
+      const messageHash = ethers.solidityPackedKeccak256(
+        ['uint16', 'address', 'address', 'uint256'],
+        [eventId, ETH_ADDRESS, user.address, claimAmount],
+      );
+      expect(await pointsRedemption.usedSignatures(messageHash)).to.be.true;
+    });
   });
 
   describe('Claiming ERC20', function () {

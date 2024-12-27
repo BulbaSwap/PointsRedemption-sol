@@ -145,6 +145,16 @@
       "address": "0xa4B99C3A4C6002aAea293b9678f8D02e3cD50826",
       "txHash": "0xd1a7368915ea5e4a37fbfb10511a4af60eda7f155fdc59b28389a6361735d437",
       "kind": "transparent"
+    },
+    {
+      "address": "0xf086B17e3Aa270bDBEABB351357c8e0C17b994A3",
+      "txHash": "0x304631592f9760a05496b5590fa3b3363e67fc937383c4f5782e6ad033115195",
+      "kind": "transparent"
+    },
+    {
+      "address": "0x236F0ef4d19fC8Dea27b78b96cE3d3524Aad9989",
+      "txHash": "0xe2cce6b3e7509b11d9f3cdcd971cf999b0e55de2c88e221182c80948d580fa63",
+      "kind": "transparent"
     }
   ],
   "impls": {
@@ -1362,6 +1372,235 @@
               }
             ],
             "numberOfBytes": "96"
+          }
+        },
+        "namespaces": {
+          "erc7201:openzeppelin.storage.ReentrancyGuard": [
+            {
+              "contract": "ReentrancyGuardUpgradeable",
+              "label": "_status",
+              "type": "t_uint256",
+              "src": "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol:43",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Ownable": [
+            {
+              "contract": "OwnableUpgradeable",
+              "label": "_owner",
+              "type": "t_address",
+              "src": "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol:24",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Initializable": [
+            {
+              "contract": "Initializable",
+              "label": "_initialized",
+              "type": "t_uint64",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:69",
+              "offset": 0,
+              "slot": "0"
+            },
+            {
+              "contract": "Initializable",
+              "label": "_initializing",
+              "type": "t_bool",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:73",
+              "offset": 8,
+              "slot": "0"
+            }
+          ]
+        }
+      }
+    },
+    "21bd56c0a7e0bef81248374150c99c15a48f1b8baaa5cf66b1981574fb114212": {
+      "address": "0x522f2fA02252f8335A5Fa8496363863A1FAf5909",
+      "txHash": "0x4967cbb1915217db71bbe999041981b652fdaa19170a4066801689c5b9cb6350",
+      "layout": {
+        "solcVersion": "0.8.27",
+        "storage": [
+          {
+            "label": "globalSigner",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_address",
+            "contract": "PointsRedemption",
+            "src": "contracts/PointsRedemption.sol:29"
+          },
+          {
+            "label": "usedSignatures",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_mapping(t_bytes32,t_bool)",
+            "contract": "PointsRedemption",
+            "src": "contracts/PointsRedemption.sol:30"
+          },
+          {
+            "label": "redemptionEvents",
+            "offset": 0,
+            "slot": "2",
+            "type": "t_mapping(t_uint16,t_struct(RedemptionEvent)5051_storage)",
+            "contract": "PointsRedemption",
+            "src": "contracts/PointsRedemption.sol:31"
+          },
+          {
+            "label": "userTotalRedeemed",
+            "offset": 0,
+            "slot": "3",
+            "type": "t_mapping(t_uint16,t_mapping(t_address,t_uint256))",
+            "contract": "PointsRedemption",
+            "src": "contracts/PointsRedemption.sol:32"
+          },
+          {
+            "label": "currentEventId",
+            "offset": 0,
+            "slot": "4",
+            "type": "t_uint16",
+            "contract": "PointsRedemption",
+            "src": "contracts/PointsRedemption.sol:48"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_bool": {
+            "label": "bool",
+            "numberOfBytes": "1"
+          },
+          "t_struct(InitializableStorage)86_storage": {
+            "label": "struct Initializable.InitializableStorage",
+            "members": [
+              {
+                "label": "_initialized",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "_initializing",
+                "type": "t_bool",
+                "offset": 8,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(OwnableStorage)14_storage": {
+            "label": "struct OwnableUpgradeable.OwnableStorage",
+            "members": [
+              {
+                "label": "_owner",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(ReentrancyGuardStorage)184_storage": {
+            "label": "struct ReentrancyGuardUpgradeable.ReentrancyGuardStorage",
+            "members": [
+              {
+                "label": "_status",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_uint256": {
+            "label": "uint256",
+            "numberOfBytes": "32"
+          },
+          "t_uint64": {
+            "label": "uint64",
+            "numberOfBytes": "8"
+          },
+          "t_array(t_address)dyn_storage": {
+            "label": "address[]",
+            "numberOfBytes": "32"
+          },
+          "t_bytes32": {
+            "label": "bytes32",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_address,t_struct(TokenInfo)5040_storage)": {
+            "label": "mapping(address => struct PointsRedemption.TokenInfo)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_address,t_uint256)": {
+            "label": "mapping(address => uint256)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_bytes32,t_bool)": {
+            "label": "mapping(bytes32 => bool)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint16,t_mapping(t_address,t_uint256))": {
+            "label": "mapping(uint16 => mapping(address => uint256))",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint16,t_struct(RedemptionEvent)5051_storage)": {
+            "label": "mapping(uint16 => struct PointsRedemption.RedemptionEvent)",
+            "numberOfBytes": "32"
+          },
+          "t_struct(RedemptionEvent)5051_storage": {
+            "label": "struct PointsRedemption.RedemptionEvent",
+            "members": [
+              {
+                "label": "isActive",
+                "type": "t_bool",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "tokens",
+                "type": "t_mapping(t_address,t_struct(TokenInfo)5040_storage)",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "tokenAddresses",
+                "type": "t_array(t_address)dyn_storage",
+                "offset": 0,
+                "slot": "2"
+              }
+            ],
+            "numberOfBytes": "96"
+          },
+          "t_struct(TokenInfo)5040_storage": {
+            "label": "struct PointsRedemption.TokenInfo",
+            "members": [
+              {
+                "label": "tokenAddress",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "totalAmount",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "remainingAmount",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "2"
+              }
+            ],
+            "numberOfBytes": "96"
+          },
+          "t_uint16": {
+            "label": "uint16",
+            "numberOfBytes": "2"
           }
         },
         "namespaces": {
