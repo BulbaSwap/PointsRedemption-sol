@@ -43,16 +43,19 @@ describe('Claiming', function () {
     });
 
     it('Should successfully claim ETH with valid signature', async function () {
+      const userRedemptionId = 1;
       const message = ethers.solidityPackedKeccak256(
-        ['uint16', 'address', 'address', 'uint256'],
-        [eventId, ETH_ADDRESS, user.address, claimAmount],
+        ['uint16', 'uint16', 'address', 'address', 'uint256'],
+        [eventId, userRedemptionId, ETH_ADDRESS, user.address, claimAmount],
       );
       const signature = await signer.signMessage(ethers.getBytes(message));
 
       const initialBalance = await ethers.provider.getBalance(user.address);
 
       await expect(
-        pointsRedemption.connect(user).claim(eventId, ETH_ADDRESS, claimAmount, signature),
+        pointsRedemption
+          .connect(user)
+          .claim(eventId, userRedemptionId, ETH_ADDRESS, claimAmount, signature),
       )
         .to.emit(pointsRedemption, 'TokensClaimed')
         .withArgs(eventId, ETH_ADDRESS, user.address, claimAmount);
@@ -62,44 +65,55 @@ describe('Claiming', function () {
     });
 
     it('Should not allow duplicate claims with same signature', async function () {
+      const userRedemptionId = 1;
       const message = ethers.solidityPackedKeccak256(
-        ['uint16', 'address', 'address', 'uint256'],
-        [eventId, ETH_ADDRESS, user.address, claimAmount],
+        ['uint16', 'uint16', 'address', 'address', 'uint256'],
+        [eventId, userRedemptionId, ETH_ADDRESS, user.address, claimAmount],
       );
       const signature = await signer.signMessage(ethers.getBytes(message));
 
-      await pointsRedemption.connect(user).claim(eventId, ETH_ADDRESS, claimAmount, signature);
+      await pointsRedemption
+        .connect(user)
+        .claim(eventId, userRedemptionId, ETH_ADDRESS, claimAmount, signature);
 
       await expect(
-        pointsRedemption.connect(user).claim(eventId, ETH_ADDRESS, claimAmount, signature),
+        pointsRedemption
+          .connect(user)
+          .claim(eventId, userRedemptionId, ETH_ADDRESS, claimAmount, signature),
       ).to.be.revertedWith('Claim already used');
     });
 
     it('Should not allow claiming with invalid signature', async function () {
+      const userRedemptionId = 1;
       const message = ethers.solidityPackedKeccak256(
-        ['uint16', 'address', 'address', 'uint256'],
-        [eventId, ETH_ADDRESS, user.address, claimAmount],
+        ['uint16', 'uint16', 'address', 'address', 'uint256'],
+        [eventId, userRedemptionId, ETH_ADDRESS, user.address, claimAmount],
       );
       const signature = await owner.signMessage(ethers.getBytes(message));
 
       await expect(
-        pointsRedemption.connect(user).claim(eventId, ETH_ADDRESS, claimAmount, signature),
+        pointsRedemption
+          .connect(user)
+          .claim(eventId, userRedemptionId, ETH_ADDRESS, claimAmount, signature),
       ).to.be.revertedWith('Invalid signature');
     });
 
     it('Should mark signature as used after successful claim', async function () {
+      const userRedemptionId = 1;
       const message = ethers.solidityPackedKeccak256(
-        ['uint16', 'address', 'address', 'uint256'],
-        [eventId, ETH_ADDRESS, user.address, claimAmount],
+        ['uint16', 'uint16', 'address', 'address', 'uint256'],
+        [eventId, userRedemptionId, ETH_ADDRESS, user.address, claimAmount],
       );
       const signature = await signer.signMessage(ethers.getBytes(message));
 
-      await pointsRedemption.connect(user).claim(eventId, ETH_ADDRESS, claimAmount, signature);
+      await pointsRedemption
+        .connect(user)
+        .claim(eventId, userRedemptionId, ETH_ADDRESS, claimAmount, signature);
 
       // Check if signature is marked as used
       const messageHash = ethers.solidityPackedKeccak256(
-        ['uint16', 'address', 'address', 'uint256'],
-        [eventId, ETH_ADDRESS, user.address, claimAmount],
+        ['uint16', 'uint16', 'address', 'address', 'uint256'],
+        [eventId, userRedemptionId, ETH_ADDRESS, user.address, claimAmount],
       );
       expect(await pointsRedemption.usedSignatures(messageHash)).to.be.true;
     });
@@ -120,16 +134,17 @@ describe('Claiming', function () {
     });
 
     it('Should successfully claim ERC20 tokens with valid signature', async function () {
+      const userRedemptionId = 1;
       const message = ethers.solidityPackedKeccak256(
-        ['uint16', 'address', 'address', 'uint256'],
-        [eventId, await mockToken.getAddress(), user.address, claimAmount],
+        ['uint16', 'uint16', 'address', 'address', 'uint256'],
+        [eventId, userRedemptionId, await mockToken.getAddress(), user.address, claimAmount],
       );
       const signature = await signer.signMessage(ethers.getBytes(message));
 
       await expect(
         pointsRedemption
           .connect(user)
-          .claim(eventId, await mockToken.getAddress(), claimAmount, signature),
+          .claim(eventId, userRedemptionId, await mockToken.getAddress(), claimAmount, signature),
       )
         .to.emit(pointsRedemption, 'TokensClaimed')
         .withArgs(eventId, await mockToken.getAddress(), user.address, claimAmount);
@@ -153,12 +168,15 @@ describe('Claiming', function () {
       });
 
       it('Should withdraw correct remaining ETH after claims', async function () {
+        const userRedemptionId = 1;
         const message = ethers.solidityPackedKeccak256(
-          ['uint16', 'address', 'address', 'uint256'],
-          [eventId, ETH_ADDRESS, user.address, claimAmount],
+          ['uint16', 'uint16', 'address', 'address', 'uint256'],
+          [eventId, userRedemptionId, ETH_ADDRESS, user.address, claimAmount],
         );
         const signature = await signer.signMessage(ethers.getBytes(message));
-        await pointsRedemption.connect(user).claim(eventId, ETH_ADDRESS, claimAmount, signature);
+        await pointsRedemption
+          .connect(user)
+          .claim(eventId, userRedemptionId, ETH_ADDRESS, claimAmount, signature);
 
         await pointsRedemption.connect(owner).createRedemptionEvent(eventId + 1);
 
@@ -191,14 +209,15 @@ describe('Claiming', function () {
       });
 
       it('Should withdraw correct remaining ERC20 tokens after claims', async function () {
+        const userRedemptionId = 1;
         const message = ethers.solidityPackedKeccak256(
-          ['uint16', 'address', 'address', 'uint256'],
-          [eventId, await mockToken.getAddress(), user.address, claimAmount],
+          ['uint16', 'uint16', 'address', 'address', 'uint256'],
+          [eventId, userRedemptionId, await mockToken.getAddress(), user.address, claimAmount],
         );
         const signature = await signer.signMessage(ethers.getBytes(message));
         await pointsRedemption
           .connect(user)
-          .claim(eventId, await mockToken.getAddress(), claimAmount, signature);
+          .claim(eventId, userRedemptionId, await mockToken.getAddress(), claimAmount, signature);
 
         await pointsRedemption.connect(owner).createRedemptionEvent(eventId + 1);
 
@@ -216,6 +235,75 @@ describe('Claiming', function () {
 
         expect(ownerBalanceAfter - ownerBalanceBefore).to.equal(totalAmount - claimAmount);
       });
+    });
+  });
+
+  describe('Multiple Claims in Same Event', function () {
+    const eventId = 5;
+    const totalAmount = ethers.parseEther('1000');
+    const claimAmount1 = ethers.parseEther('100');
+    const claimAmount2 = ethers.parseEther('200');
+
+    beforeEach(async function () {
+      await mockToken.mint(owner.address, totalAmount);
+      await mockToken.connect(owner).approve(pointsRedemption.getAddress(), totalAmount);
+      await pointsRedemption.connect(owner).createRedemptionEvent(eventId);
+      await pointsRedemption
+        .connect(owner)
+        .addToken(eventId, await mockToken.getAddress(), totalAmount);
+    });
+
+    it('Should allow multiple claims with different userRedemptionIds', async function () {
+      // First claim
+      const userRedemptionId1 = 1;
+      const message1 = ethers.solidityPackedKeccak256(
+        ['uint16', 'uint16', 'address', 'address', 'uint256'],
+        [eventId, userRedemptionId1, await mockToken.getAddress(), user.address, claimAmount1],
+      );
+      const signature1 = await signer.signMessage(ethers.getBytes(message1));
+      await pointsRedemption
+        .connect(user)
+        .claim(eventId, userRedemptionId1, await mockToken.getAddress(), claimAmount1, signature1);
+
+      // Second claim
+      const userRedemptionId2 = 2;
+      const message2 = ethers.solidityPackedKeccak256(
+        ['uint16', 'uint16', 'address', 'address', 'uint256'],
+        [eventId, userRedemptionId2, await mockToken.getAddress(), user.address, claimAmount2],
+      );
+      const signature2 = await signer.signMessage(ethers.getBytes(message2));
+      await pointsRedemption
+        .connect(user)
+        .claim(eventId, userRedemptionId2, await mockToken.getAddress(), claimAmount2, signature2);
+
+      // Verify total claimed amount
+      expect(await mockToken.balanceOf(user.address)).to.equal(claimAmount1 + claimAmount2);
+
+      // Verify remaining amount
+      const [, , remainingAmount] = await pointsRedemption.getTokenInfo(
+        eventId,
+        await mockToken.getAddress(),
+      );
+      expect(remainingAmount).to.equal(totalAmount - claimAmount1 - claimAmount2);
+    });
+
+    it('Should not allow reusing userRedemptionId in same event', async function () {
+      const userRedemptionId = 1;
+      const message1 = ethers.solidityPackedKeccak256(
+        ['uint16', 'uint16', 'address', 'address', 'uint256'],
+        [eventId, userRedemptionId, await mockToken.getAddress(), user.address, claimAmount1],
+      );
+      const signature1 = await signer.signMessage(ethers.getBytes(message1));
+      await pointsRedemption
+        .connect(user)
+        .claim(eventId, userRedemptionId, await mockToken.getAddress(), claimAmount1, signature1);
+
+      // Try to claim again with same userRedemptionId and same parameters
+      await expect(
+        pointsRedemption
+          .connect(user)
+          .claim(eventId, userRedemptionId, await mockToken.getAddress(), claimAmount1, signature1),
+      ).to.be.revertedWith('Claim already used');
     });
   });
 });

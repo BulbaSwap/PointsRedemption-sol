@@ -108,6 +108,7 @@ contract PointsRedemption is Initializable, OwnableUpgradeable, ReentrancyGuardU
 
     function claim(
         uint16 eventId,
+        uint16 userRedemptionId,
         address tokenAddress,
         uint256 amount,
         bytes memory signature
@@ -118,7 +119,7 @@ contract PointsRedemption is Initializable, OwnableUpgradeable, ReentrancyGuardU
         require(token.tokenAddress != address(0), "Token not found");
 
         bytes32 messageHash = keccak256(
-            abi.encodePacked(eventId, tokenAddress, msg.sender, amount)
+            abi.encodePacked(eventId, userRedemptionId, tokenAddress, msg.sender, amount)
         );
         bytes32 ethSignedMessageHash = messageHash.toEthSignedMessageHash();
         address recoveredSigner = ethSignedMessageHash.recover(signature);
